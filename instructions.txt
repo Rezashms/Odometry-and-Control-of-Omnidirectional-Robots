@@ -1,0 +1,86 @@
+Instructions for "project_1"
+
+Team members
+
+	Davide Mantegazza - 10568661
+	Lorenzo Castiglia - 10578631
+
+
+Files description
+
+	src/velocities.cpp: node in which we calculate the robot velocities starting from wheels' RPM encoders
+						we used this node in the early stages and for comparison purposes
+	src/velocitiesTicks: node in which we calculate the robot velocities starting from wheels' ticks encoders, it subscibes
+						 to /wheel_states and feeds the odometry node through messages sent on the /cmd_vel topic
+	src/odometry: the node in which the odometry is computed, either with Euler method or Runge-Kutta method, for then
+				  publishing the result on the topic /odom
+		    	  it offers a reset service to set a new pose for the robot and a dynamic parameter to change integration method
+	src/tfBroadcast: this node is used to define the robot transformation frames, specifically the world frame,
+					 the odometry frame and the robot frame (base_link)
+					 It also implements the broadcast messages from world to odometry frame and from odometry to base_link frame
+	src/wheelsVel: read from topic /cmd_vel and calculates back the wheels velocities from the robot velocities,
+				   publishes results with messages of custom type sent on the /wheels_rpm topic in rad/s
+	src/checkParams : a node in which we tried to calculate the optimal robot parameters starting from the ground truth and
+					  the wheel velocities. We ended up discarding this method (the node in not included in the launch file)
+					  since there isn't enough correlation between the two measuraments to obtain precise numbers.
+
+	cfg/parameters.cfg : dynamic reconfigure of param "set_method" to change integration method, 0 (default) for Euler, 1 for RK
+	cfg/robotparameters.cfg : dynamic rec of the robot parameters to perform calibration without recompiling
+	srv/ResetPose.srv : service to set a new pose for the robot (x y theta)
+	msg/WheelsVel.msg : custom message to broadcast wheels' rpm values on topic /wheels_rpm
+	launch/project_1.launch : launch file, the static params are all set here
+
+
+Parameters description
+	
+	static params (all set in the launch file)	
+		
+		gearRatio : self explanatory		
+		use_sim_time : param that tells rqt_plot that we are using a bag recording
+		msgInterval : parameter we used to check if, by computing the odometry every few messages
+		      	      instead of every single message, the noise would be improved.
+		      	      In our testing we didn't see a big difference so we set it to 1 by default
+		wheelRadius : radius in meters
+		halfLength : wheel position along x (l) in meters
+		halfWidth : wheel position along y (w) in meters
+		tickRes : encoders resolution (N counts per revolution)
+	NOTE: robot parameters (radius, length, width and resolution) are also dynamically reconfigurable, changing the
+		  values in the node velocitiesTicks. Once calibration was finished we changed the default values in the launch
+		  file as well, so that every other node could read the updated values.
+	
+	dynamic params
+	"rosrun rqt_reconfigure rqt_reconfigure" to change them
+		set_method : change integration method, 0 (default) for Euler, 1 for RK		     
+		
+
+Structure of the TF tree
+
+	world -> odom -> base_link
+
+
+Structure of custom messages
+	
+	project_1::WheelsVel
+		Header header
+		float64 rpm_fl
+		float64 rpm_fr
+		float64 rpm_rl
+		float64 rpm_rr
+	NOTE: in the project specification the order requested is fl-fr-rr-rl, however we used this
+	      convention in order to be consistent with the one used in the bags provided.
+
+
+How to start and use the nodes
+
+	our package is called "project_1"
+	to start the nodes "roslaunch project_1 project_1.launch"
+	to change the integration method "rosrun rqt_reconfigure rqt_reconfigure" and switch "set_method" to desired value
+	to set a new pose "rosservice call /resetPose x y theta"
+	to use rviz, set the fixed frame to "world"
+	
+
+Additional infos
+	To perform paramaters calibration, we changed each value one at a time using rqt_reconfigure and observed the effects
+	on rqt_graph and rviz. After each bag, we would call the reset service without restarting the nodes or recompiling. Having
+	understood the contribution of each parameter on the robot movement, we put everything together and fine tuned them.
+	We then updated the default values in the launch file so that other nodes (such as WheelsVel) could use them.
